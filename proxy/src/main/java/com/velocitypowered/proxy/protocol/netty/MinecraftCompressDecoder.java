@@ -55,19 +55,21 @@ public class MinecraftCompressDecoder extends MessageToMessageDecoder<ByteBuf> {
     if (claimedUncompressedSize == 0) {
       if (!SKIP_COMPRESSION_VALIDATION) {
         int actualUncompressedSize = in.readableBytes();
-        checkFrame(actualUncompressedSize < threshold, "Actual uncompressed size %s is greater than"
-            + " threshold %s", actualUncompressedSize, threshold);
+        if (actualUncompressedSize >= threshold) {
+            checkFrame(false, "Actual uncompressed size %s is greater than threshold %s", actualUncompressedSize, threshold);
+        }
       }
       // This message is not compressed.
       out.add(in.retain());
       return;
     }
 
-    checkFrame(claimedUncompressedSize >= threshold, "Uncompressed size %s is less than"
-        + " threshold %s", claimedUncompressedSize, threshold);
-    checkFrame(claimedUncompressedSize <= UNCOMPRESSED_CAP,
-        "Uncompressed size %s exceeds hard threshold of %s", claimedUncompressedSize,
-        UNCOMPRESSED_CAP);
+    if (claimedUncompressedSize < threshold) {
+        checkFrame(false, "Uncompressed size %s is less than threshold %s", claimedUncompressedSize, threshold);
+    }
+    if (claimedUncompressedSize > UNCOMPRESSED_CAP) {
+        checkFrame(false, "Uncompressed size %s exceeds hard threshold of %s", claimedUncompressedSize, UNCOMPRESSED_CAP);
+    }
 
     ByteBuf compatibleIn = ensureCompatible(ctx.alloc(), compressor, in);
     ByteBuf uncompressed = preferredBuffer(ctx.alloc(), compressor, claimedUncompressedSize);

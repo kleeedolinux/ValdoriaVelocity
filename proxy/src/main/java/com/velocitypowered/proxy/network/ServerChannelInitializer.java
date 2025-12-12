@@ -57,6 +57,8 @@ public class ServerChannelInitializer extends ChannelInitializer<Channel> {
   @Override
   protected void initChannel(final Channel ch) {
     ch.pipeline()
+        .addFirst(new io.netty.handler.flush.FlushConsolidationHandler(256, true))
+        .addLast("raknet_flow_control", new com.velocitypowered.proxy.raknet.RakNetFlowControlHandler())
         .addLast(LEGACY_PING_DECODER, new LegacyPingDecoder())
         .addLast(FRAME_DECODER, new MinecraftVarintFrameDecoder(ProtocolUtils.Direction.SERVERBOUND))
         .addLast(READ_TIMEOUT,
@@ -65,7 +67,8 @@ public class ServerChannelInitializer extends ChannelInitializer<Channel> {
         .addLast(LEGACY_PING_ENCODER, LegacyPingEncoder.INSTANCE)
         .addLast(FRAME_ENCODER, MinecraftVarintLengthEncoder.INSTANCE)
         .addLast(MINECRAFT_DECODER, new MinecraftDecoder(ProtocolUtils.Direction.SERVERBOUND))
-        .addLast(MINECRAFT_ENCODER, new MinecraftEncoder(ProtocolUtils.Direction.CLIENTBOUND));
+        .addLast(MINECRAFT_ENCODER, new MinecraftEncoder(ProtocolUtils.Direction.CLIENTBOUND))
+        .addLast("packet_prioritization", new com.velocitypowered.proxy.raknet.PacketPrioritizationHandler());
 
     final MinecraftConnection connection = new MinecraftConnection(ch, this.server);
     connection.setActiveSessionHandler(StateRegistry.HANDSHAKE,

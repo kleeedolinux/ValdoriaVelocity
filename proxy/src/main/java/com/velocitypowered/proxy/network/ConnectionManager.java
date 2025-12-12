@@ -101,6 +101,10 @@ public final class ConnectionManager {
         .childOption(ChannelOption.WRITE_BUFFER_WATER_MARK, SERVER_WRITE_MARK)
         .childHandler(this.serverChannelInitializer.get())
         .childOption(ChannelOption.TCP_NODELAY, true)
+        .childOption(ChannelOption.SO_KEEPALIVE, true)
+        .childOption(ChannelOption.SO_REUSEADDR, true)
+        .childOption(ChannelOption.SO_RCVBUF, 1 << 20) // 1MB
+        .childOption(ChannelOption.SO_SNDBUF, 1 << 20) // 1MB
         .childOption(ChannelOption.IP_TOS, 0x18)
         .localAddress(address);
 
@@ -193,6 +197,10 @@ public final class ConnectionManager {
     Bootstrap bootstrap = new Bootstrap()
         .channelFactory(this.transportType.socketChannelFactory)
         .option(ChannelOption.TCP_NODELAY, true)
+        .option(ChannelOption.SO_KEEPALIVE, true)
+        .option(ChannelOption.SO_REUSEADDR, true)
+        .option(ChannelOption.SO_RCVBUF, 1 << 20) // 1MB
+        .option(ChannelOption.SO_SNDBUF, 1 << 20) // 1MB
         .option(ChannelOption.CONNECT_TIMEOUT_MILLIS,
             this.server.getConfiguration().getConnectTimeout())
         .group(group == null ? this.workerGroup : group)

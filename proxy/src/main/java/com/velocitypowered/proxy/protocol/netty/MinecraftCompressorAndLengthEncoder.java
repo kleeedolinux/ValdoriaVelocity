@@ -57,23 +57,27 @@ public class MinecraftCompressorAndLengthEncoder extends MessageToByteEncoder<By
       throws DataFormatException {
     int uncompressed = msg.readableBytes();
 
-    out.writeMedium(0); // Reserve the packet length
+    // Reserve space for packet length (3 bytes for medium)
+    int startIdx = out.writerIndex();
+    out.writeMedium(0); 
     ProtocolUtils.writeVarInt(out, uncompressed);
+    
     ByteBuf compatibleIn = MoreByteBufUtils.ensureCompatible(ctx.alloc(), compressor, msg);
 
-    int startCompressed = out.writerIndex();
     try {
       compressor.deflate(compatibleIn, out);
     } finally {
       compatibleIn.release();
     }
-    int compressedLength = out.writerIndex() - startCompressed;
+    
+    int endIdx = out.writerIndex();
+    int compressedLength = endIdx - startIdx;
     if (compressedLength >= 1 << 21) {
       throw new DataFormatException("The server sent a very large (over 2MiB compressed) packet.");
     }
 
-    int packetLength = out.readableBytes() - 3;
-    out.setMedium(0, ProtocolUtils.encode21BitVarInt(packetLength)); // Rewrite packet length
+    int packetLength = compressedLength - 3;
+    out.setMedium(startIdx, ProtocolUtils.encode21BitVarInt(packetLength));
   }
 
   @Override

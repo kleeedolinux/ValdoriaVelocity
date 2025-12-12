@@ -82,6 +82,7 @@ import com.velocitypowered.proxy.protocol.packet.HeaderAndFooterPacket;
 import com.velocitypowered.proxy.protocol.packet.KeepAlivePacket;
 import com.velocitypowered.proxy.protocol.packet.PluginMessagePacket;
 import com.velocitypowered.proxy.protocol.packet.RemoveResourcePackPacket;
+import com.velocitypowered.proxy.protocol.packet.SetCompressionPacket;
 import com.velocitypowered.proxy.protocol.packet.TransferPacket;
 import com.velocitypowered.proxy.protocol.packet.chat.ChatQueue;
 import com.velocitypowered.proxy.protocol.packet.chat.ChatType;
@@ -103,6 +104,7 @@ import com.velocitypowered.proxy.util.ClosestLocaleMatcher;
 import com.velocitypowered.proxy.util.DurationUtils;
 import com.velocitypowered.proxy.util.TranslatableMapper;
 import com.velocitypowered.proxy.util.collect.CappedSet;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import java.net.InetSocketAddress;
@@ -203,6 +205,8 @@ public class ConnectedPlayer implements MinecraftConnectionAssociation, Player, 
   private volatile ChatQueue chatQueue;
   private final ChatBuilderFactory chatBuilderFactory;
   private final BossBarManager bossBarManager;
+  private long lastCompressionCheck = 0;
+  private int currentCompressionThreshold = -2;
 
   ConnectedPlayer(VelocityServer server, GameProfile profile, MinecraftConnection connection,
                   @Nullable InetSocketAddress virtualHost, @Nullable String rawVirtualHost, boolean onlineMode,
@@ -321,11 +325,44 @@ public class ConnectedPlayer implements MinecraftConnectionAssociation, Player, 
 
   @Override
   public long getPing() {
-    return this.ping;
+    return (long) this.ping;
   }
 
-  void setPing(long ping) {
-    this.ping = ping;
+  void setPing(long newPing) {
+    if (this.ping == -1) {
+      this.ping = newPing;
+    } else {
+      // EWMA Smoothing (Alpha = 0.2)
+      // Reduces jitter spikes in the displayed ping
+      this.ping = (long) (this.ping * 0.8 + newPing * 0.2);
+    }
+
+    // Adaptive compression logic
+    long now = System.currentTimeMillis();
+    if (now - lastCompressionCheck > 30000) { // Check every 30s
+      lastCompressionCheck = now;
+
+      if (currentCompressionThreshold == -2) {
+        currentCompressionThreshold = server.getConfiguration().getCompressionThreshold();
+      }
+
+      int newThreshold = currentCompressionThreshold;
+      if (this.ping > 150 && currentCompressionThreshold == -1) {
+        // High latency, enable compression
+        newThreshold = 256;
+      } else if (this.ping < 50 && currentCompressionThreshold > -1) {
+        // Low latency, disable compression
+        newThreshold = -1;
+      }
+
+      if (newThreshold != currentCompressionThreshold) {
+        currentCompressionThreshold = newThreshold;
+        if (!connection.isClosed()) {
+          connection.write(new SetCompressionPacket(currentCompressionThreshold));
+          connection.setCompressionThreshold(currentCompressionThreshold);
+        }
+      }
+    }
   }
 
   @Override

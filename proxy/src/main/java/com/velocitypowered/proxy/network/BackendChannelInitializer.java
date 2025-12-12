@@ -51,6 +51,7 @@ public class BackendChannelInitializer extends ChannelInitializer<Channel> {
   @Override
   protected void initChannel(Channel ch) {
     ch.pipeline()
+        .addLast("raknet_flow_control", new com.velocitypowered.proxy.raknet.RakNetFlowControlHandler())
         .addLast(FRAME_DECODER, new MinecraftVarintFrameDecoder(ProtocolUtils.Direction.CLIENTBOUND))
         .addLast(READ_TIMEOUT,
             new ReadTimeoutHandler(server.getConfiguration().getReadTimeout(),
@@ -60,6 +61,7 @@ public class BackendChannelInitializer extends ChannelInitializer<Channel> {
             new MinecraftDecoder(ProtocolUtils.Direction.CLIENTBOUND))
         .addLast(FLOW_HANDLER, new AutoReadHolderHandler())
         .addLast(MINECRAFT_ENCODER,
-            new MinecraftEncoder(ProtocolUtils.Direction.SERVERBOUND));
+            new MinecraftEncoder(ProtocolUtils.Direction.SERVERBOUND))
+        .addLast("packet_prioritization", new com.velocitypowered.proxy.raknet.PacketPrioritizationHandler());
   }
 }
